@@ -3,9 +3,9 @@ name: Release commit-go
 
 on:
   push:
-    # La CI ne se lance que quand on pousse un tag qui commence par "v"
     tags:
       - 'v*'
+  workflow_dispatch: # Permet de lancer manuellement depuis l'onglet Actions
 
 permissions:
   contents: write
