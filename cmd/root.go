@@ -37,8 +37,7 @@ var commitCmd = &cobra.Command{
 			return
 		}
 
-		fmt.Printf("Generating message using %s...\n", provider.GetName())
-		message, err := provider.GenerateCommit(diff)
+		message, err := ui.GenerateWithSpinner(diff, provider)
 		if err != nil {
 			fmt.Printf("Error generating message: %v\n", err)
 			return
@@ -72,16 +71,42 @@ var configSetCmd = &cobra.Command{
 }
 
 func GetProvider() (ai.AIProvider, error) {
+	providerName := viper.GetString("provider")
 	apiKey := viper.GetString("api_key")
 
-	// Nettoyage au cas où la clé est restée sur "test_key"
-	if apiKey == "test_key" {
-		apiKey = ""
+	switch providerName {
+	case "ollama":
+		model := viper.GetString("ollama_model")
+		if model == "" {
+			model = "llama3"
+		}
+		return &ai.OllamaProvider{
+			Endpoint: viper.GetString("ollama_endpoint"),
+			Model:    model,
+		}, nil
+	case "claude":
+		model := viper.GetString("claude_model")
+		if model == "" {
+			model = "claude-3-5-sonnet-20240620"
+		}
+		if apiKey == "" {
+			return nil, fmt.Errorf("API key is required for Claude. Use 'commit-go config set api_key <your_key>'")
+		}
+		return &ai.ClaudeProvider{
+			APIKey: apiKey,
+			Model:  model,
+		}, nil
+	case "gemini":
+		fallthrough
+	default:
+		// Nettoyage au cas où la clé est restée sur "test_key"
+		if apiKey == "test_key" {
+			apiKey = ""
+		}
+		return &ai.GeminiProvider{
+			APIKey: apiKey,
+		}, nil
 	}
-
-	return &ai.GeminiProvider{
-		APIKey: apiKey,
-	}, nil
 }
 
 func initConfig() {
@@ -107,10 +132,14 @@ func initConfig() {
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	commitCmd.Flags().StringP("provider", "p", "gemini", "AI provider to use")
+	commitCmd.Flags().StringP("provider", "p", "gemini", "AI provider to use (gemini, ollama, claude)")
+	commitCmd.Flags().String("ollama-model", "", "Ollama model to use")
+	commitCmd.Flags().String("claude-model", "", "Claude model to use")
 	commitCmd.Flags().BoolP("debug", "d", false, "Display debug logs")
 
 	viper.BindPFlag("provider", commitCmd.Flags().Lookup("provider"))
+	viper.BindPFlag("ollama_model", commitCmd.Flags().Lookup("ollama-model"))
+	viper.BindPFlag("claude_model", commitCmd.Flags().Lookup("claude-model"))
 	viper.BindPFlag("debug", commitCmd.Flags().Lookup("debug"))
 
 	rootCmd.AddCommand(commitCmd)
